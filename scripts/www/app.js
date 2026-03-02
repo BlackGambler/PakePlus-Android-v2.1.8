@@ -463,11 +463,84 @@ onReady(function () {
     });
   });
 
-  // 移动端侧边栏
+  // 移动端侧边栏：在窄屏时展示为全屏覆盖导航并显示遮罩；在大屏保持原有行为
   const sidebarToggle = document.getElementById("sidebar-toggle");
-  const sidebar = document.querySelector("aside");
+  const sidebar = document.getElementById("main-sidebar");
+  const mobileBackdrop = document.getElementById("mobile-nav-backdrop");
+
+  function isLargeScreen() {
+    // Tailwind 默认 lg 起点是 1024px
+    return window.innerWidth >= 1024;
+  }
+
+  function openMobileSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove("hidden");
+    sidebar.classList.add("mobile-overlay-open");
+    mobileBackdrop && mobileBackdrop.classList.remove("hidden");
+    // prevent body scrolling when overlay open
+    try {
+      document.body.style.overflow = "hidden";
+    } catch (e) {}
+  }
+
+  function closeMobileSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove("mobile-overlay-open");
+    sidebar.classList.add("hidden");
+    mobileBackdrop && mobileBackdrop.classList.add("hidden");
+    try {
+      document.body.style.overflow = "";
+    } catch (e) {}
+  }
+
   sidebarToggle?.addEventListener("click", function () {
-    sidebar.classList.toggle("hidden");
+    if (isLargeScreen()) {
+      // 保持原有桌面行为（如果需要折叠也适配）
+      sidebar.classList.toggle("hidden");
+      return;
+    }
+    // 窄屏：切换覆盖导航
+    if (sidebar.classList.contains("mobile-overlay-open")) {
+      closeMobileSidebar();
+    } else {
+      openMobileSidebar();
+    }
+  });
+
+  // 点击遮罩关闭侧栏
+  mobileBackdrop?.addEventListener("click", function () {
+    closeMobileSidebar();
+  });
+
+  // 在导航链接点击后，如果是移动覆盖模式，则关闭覆盖（避免与内容同时显示）
+  navLinks.forEach((link) => {
+    link.addEventListener("click", function () {
+      if (
+        !isLargeScreen() &&
+        sidebar.classList.contains("mobile-overlay-open")
+      ) {
+        // 小延时保证路由/切换逻辑先执行再关闭 overlay
+        setTimeout(closeMobileSidebar, 120);
+      }
+    });
+  });
+
+  // 当窗口大小变化到大屏时，确保清理移动端状态
+  window.addEventListener("resize", function () {
+    if (isLargeScreen()) {
+      // 还原可能被隐藏的侧栏
+      sidebar && sidebar.classList.remove("hidden", "mobile-overlay-open");
+      mobileBackdrop && mobileBackdrop.classList.add("hidden");
+      try {
+        document.body.style.overflow = "";
+      } catch (e) {}
+    } else {
+      // 当从大屏切回小屏，确保侧栏默认隐藏（避免意外露出）
+      if (sidebar && !sidebar.classList.contains("mobile-overlay-open")) {
+        sidebar.classList.add("hidden");
+      }
+    }
   });
 
   // ========== localStorage 持久化函数（保持原有接口） ==========
