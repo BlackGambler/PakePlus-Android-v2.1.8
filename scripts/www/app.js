@@ -52,6 +52,9 @@ function showAppModal(message, title) {
     } catch (err) {}
     return Promise.resolve();
   }
+  try {
+    migrateOldLocalStoragePhotos();
+  } catch (e) {}
 }
 
 // ========= 签名面板逻辑（来自原始 quality 区块） =========
@@ -216,74 +219,102 @@ onReady(function () {
     window[`_${canvasId}Chart`] = new Chart(ctx, {
       type: type,
       data: data,
-      options: options
+      options: options,
     });
   }
 
   function createProductionChart() {
-    createChart("productionChart", "line", {
-      labels: ["", "", "", "", "", "", ""],
-      datasets: [{
-        data: [8, 9, 10, 7, 12, 11, 13],
-        borderColor: "#165DFF",
-        backgroundColor: "rgba(22, 93, 255, 0.1)",
-        fill: true,
-        tension: 0.4,
-      }],
-    }, {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { display: false }, y: { display: false } },
-    });
+    createChart(
+      "productionChart",
+      "line",
+      {
+        labels: ["", "", "", "", "", "", ""],
+        datasets: [
+          {
+            data: [8, 9, 10, 7, 12, 11, 13],
+            borderColor: "#165DFF",
+            backgroundColor: "rgba(22, 93, 255, 0.1)",
+            fill: true,
+            tension: 0.4,
+          },
+        ],
+      },
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      },
+    );
   }
 
   function createEquipmentChart() {
-    createChart("equipmentChart", "doughnut", {
-      labels: ["稼动", "停机"],
-      datasets: [{
-        data: [92.5, 7.5],
-        backgroundColor: ["#36CFC9", "#F2F3F5"],
-        borderWidth: 0,
-      }],
-    }, {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      cutout: "70%",
-    });
+    createChart(
+      "equipmentChart",
+      "doughnut",
+      {
+        labels: ["稼动", "停机"],
+        datasets: [
+          {
+            data: [92.5, 7.5],
+            backgroundColor: ["#36CFC9", "#F2F3F5"],
+            borderWidth: 0,
+          },
+        ],
+      },
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: "70%",
+      },
+    );
   }
 
   function createQualityChart() {
-    createChart("qualityChart", "doughnut", {
-      labels: ["良品", "不良"],
-      datasets: [{
-        data: [98.7, 1.3],
-        backgroundColor: ["#00B42A", "#F2F3F5"],
-        borderWidth: 0,
-      }],
-    }, {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      cutout: "70%",
-    });
+    createChart(
+      "qualityChart",
+      "doughnut",
+      {
+        labels: ["良品", "不良"],
+        datasets: [
+          {
+            data: [98.7, 1.3],
+            backgroundColor: ["#00B42A", "#F2F3F5"],
+            borderWidth: 0,
+          },
+        ],
+      },
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: "70%",
+      },
+    );
   }
 
   function createWorkOrderChart() {
-    createChart("workOrderChart", "bar", {
-      labels: ["", "", "", "", ""],
-      datasets: [{
-        data: [5, 8, 6, 9, 7],
-        backgroundColor: "#FF7D00",
-        borderRadius: 4,
-      }],
-    }, {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { display: false }, y: { display: false } },
-    });
+    createChart(
+      "workOrderChart",
+      "bar",
+      {
+        labels: ["", "", "", "", ""],
+        datasets: [
+          {
+            data: [5, 8, 6, 9, 7],
+            backgroundColor: "#FF7D00",
+            borderRadius: 4,
+          },
+        ],
+      },
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      },
+    );
   }
 
   function createTrendChart() {
@@ -339,8 +370,8 @@ onReady(function () {
             top: 10,
             bottom: 10,
             left: 10,
-            right: 10
-          }
+            right: 10,
+          },
         },
         plugins: {
           legend: { position: "top", align: "end" },
@@ -440,6 +471,108 @@ onReady(function () {
   });
 
   // ========== localStorage 持久化函数（保持原有接口） ==========
+  // 初始化 localForage（如果已引入）
+  try {
+    if (window.localforage) {
+      // 优先使用 IndexedDB -> WebSQL -> localStorage
+      localforage.config({
+        name: "mes_app",
+        storeName: "mes_store",
+        description: "持久化 MES 数据 (work order photos etc.)",
+      });
+    }
+  } catch (e) {
+    console.warn("localforage init failed:", e);
+  }
+  // 迁移旧版 localStorage 中以 DataURL 保存的图片到 localforage（Blob 存储），仅在首次检测到旧数据时运行一次
+  function migrateOldLocalStoragePhotos() {
+    try {
+      const old = localStorage.getItem("workOrderPhotos");
+      if (!old) return;
+      let parsed = {};
+      try {
+        parsed = JSON.parse(old || "{}");
+      } catch (e) {
+        parsed = {};
+      }
+      const keys = Object.keys(parsed || {});
+      if (keys.length === 0) return;
+      // 逐工单迁移
+      keys.forEach((orderNo) => {
+        const arr = parsed[orderNo] || [];
+        const converted = [];
+        arr.forEach((p) => {
+          try {
+            // 如果已是字符串 DataURL 或对象 {url: dataUrl}
+            const dataUrl =
+              typeof p === "string" ? p : p && p.url ? p.url : null;
+            if (dataUrl && dataUrl.startsWith("data:")) {
+              // convert DataURL to Blob
+              const parts = dataUrl.split(",");
+              const mimeMatch = parts[0].match(/:(.*?);/);
+              const mime = mimeMatch ? mimeMatch[1] : "image/png";
+              const bstr = atob(parts[1]);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while (n--) u8arr[n] = bstr.charCodeAt(n);
+              const blob = new Blob([u8arr], { type: mime });
+              converted.push({
+                id:
+                  (p && p.id) ||
+                  `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                name: (p && p.name) || "photo",
+                mime: mime,
+                timestamp: new Date().toISOString(),
+                blob: blob,
+              });
+            } else if (p && p.blob) {
+              converted.push(p);
+            } else if (p && p.url) {
+              converted.push(p);
+            }
+          } catch (e) {
+            console.warn("迁移单张图片失败：", e);
+          }
+        });
+        if (converted.length > 0 && window.localforage) {
+          try {
+            localforage
+              .getItem("workOrderPhotos")
+              .then((stored) => {
+                const obj = stored || {};
+                obj[orderNo] = converted;
+                return localforage.setItem("workOrderPhotos", obj);
+              })
+              .catch((err) =>
+                console.warn("localforage set during migrate failed:", err),
+              );
+          } catch (e) {}
+          // 写入 meta
+          try {
+            const metaAll = JSON.parse(
+              localStorage.getItem("workOrderPhotosMeta") || "{}",
+            );
+            metaAll[orderNo] = converted.map((p) => ({
+              id: p.id || null,
+              name: p.name || null,
+              mime: p.mime || null,
+              timestamp: p.timestamp || null,
+            }));
+            localStorage.setItem(
+              "workOrderPhotosMeta",
+              JSON.stringify(metaAll),
+            );
+          } catch (e) {}
+        }
+      });
+      // 移除旧 key
+      try {
+        localStorage.removeItem("workOrderPhotos");
+      } catch (e) {}
+    } catch (e) {
+      console.warn("迁移旧图片数据失败：", e);
+    }
+  }
   function loadAllWorkOrders() {
     try {
       const workOrderData = localStorage.getItem("mesWorkOrders");
@@ -477,40 +610,196 @@ onReady(function () {
       showAppModal("质量工单保存失败，请检查浏览器存储权限！");
     }
   }
-  // 历史追溯功能已简化：不再保存/加载图片历史，相关调用保持兼容但返回空数据或不做持久化
+  // 图片持久化：把最小化的元数据保存在 localStorage（key=workOrderPhotosMeta），
+  // 把完整的照片对象（可能包含 Blob）保存在 localForage (key=workOrderPhotos) 中。
+  // 这样能兼顾旧逻辑的同步读取（读取元数据）和 IndexedDB 的大容量持久化。
   function savePhotosToLocalStorage(orderNo, photos) {
     try {
-      const allPhotos = JSON.parse(localStorage.getItem("workOrderPhotos") || "{}");
-      allPhotos[orderNo] = photos;
-      localStorage.setItem("workOrderPhotos", JSON.stringify(allPhotos));
+      // 写入 meta 到 localStorage（仅 id/name/mime/timestamp）以保持同步性且体积小
+      const metaAll = JSON.parse(
+        localStorage.getItem("workOrderPhotosMeta") || "{}",
+      );
+      try {
+        metaAll[orderNo] = (Array.isArray(photos) ? photos : []).map((p) => ({
+          id: p.id || null,
+          name: p.name || null,
+          mime: p.mime || p.type || null,
+          timestamp: p.timestamp || null,
+        }));
+        localStorage.setItem("workOrderPhotosMeta", JSON.stringify(metaAll));
+      } catch (err) {
+        console.warn("localStorage 写入图片元数据失败（可能超配额）：", err);
+      }
 
-      // 如果是固定工单LFP250803，同时更新质量追溯的追溯图片
+      // 立即更新 UI（固定工单 trace 区）
       if (orderNo === "LFP250803") {
         window._traceabilityPhotos = photos;
-        renderTraceabilityPhotos();
+        try {
+          renderTraceabilityPhotos();
+        } catch (e) {}
+      }
+
+      // 异步写入 localforage（完整对象，包括 Blob）
+      if (window.localforage) {
+        try {
+          // Ensure we don't leave stale full-data entries in localForage. If
+          // photos array is empty, remove the order's entry to avoid later
+          // async loads from re-populating the UI with stale blobs.
+          localforage
+            .getItem("workOrderPhotos")
+            .then((stored) => {
+              const obj = stored || {};
+              if (Array.isArray(photos) && photos.length > 0) {
+                obj[orderNo] = Array.isArray(photos) ? photos : [];
+              } else {
+                // remove entry when no photos remain
+                if (obj && Object.prototype.hasOwnProperty.call(obj, orderNo))
+                  delete obj[orderNo];
+              }
+              return localforage.setItem("workOrderPhotos", obj);
+            })
+            .catch((err) => {
+              console.warn("localforage get/set failed:", err);
+            });
+        } catch (err) {
+          console.warn("写入 localforage 失败：", err);
+        }
       }
     } catch (e) {
-      console.warn("保存图片到localStorage失败：", e);
+      console.warn("保存图片到持久化存储失败：", e);
     }
   }
-  
+
   // 保存电池检测数据到localStorage
   function saveBatteryDataToLocalStorage(orderNo, batteryBatch) {
     try {
-      const allBatteryData = JSON.parse(localStorage.getItem("workOrderBatteryData") || "{}");
+      const allBatteryData = JSON.parse(
+        localStorage.getItem("workOrderBatteryData") || "{}",
+      );
       if (!allBatteryData[orderNo]) {
         allBatteryData[orderNo] = [];
       }
       allBatteryData[orderNo].push(batteryBatch);
-      localStorage.setItem("workOrderBatteryData", JSON.stringify(allBatteryData));
+      localStorage.setItem(
+        "workOrderBatteryData",
+        JSON.stringify(allBatteryData),
+      );
     } catch (e) {
       console.warn("保存电池检测数据到localStorage失败：", e);
     }
   }
+  // 加载图片函数：同步返回 localStorage 快速缓存的数据，同时异步从 localForage 恢复并在数据不同时回填并触发 UI 更新
   function loadPhotosFromLocalStorage(orderNo) {
     try {
-      const allPhotos = JSON.parse(localStorage.getItem("workOrderPhotos") || "{}");
-      return allPhotos[orderNo] || [];
+      // 读取元数据（localStorage 中只保存 meta，减少占用）
+      const metaAll = JSON.parse(
+        localStorage.getItem("workOrderPhotosMeta") || "{}",
+      );
+      const metaList = metaAll[orderNo] || [];
+      // 构造默认返回结果：仅包含 meta（url 可能为空），以便 UI 能快速显示占位或名称
+      const result = (metaList || []).map((m) => ({
+        id: m.id || null,
+        name: m.name || null,
+        mime: m.mime || null,
+        timestamp: m.timestamp || null,
+        url: null,
+      }));
+
+      // 异步尝试从 localforage 读取（如果可用），并在读取到不同数据时回填 localStorage 并更新 UI
+      if (window.localforage) {
+        try {
+          localforage
+            .getItem("workOrderPhotos")
+            .then((stored) => {
+              if (stored && stored[orderNo]) {
+                try {
+                  const full = stored[orderNo];
+
+                  // Compare with the synchronous meta in localStorage. If the
+                  // meta for this order indicates there are NO photos (i.e.
+                  // the user just deleted them), prefer the meta and delete
+                  // the stale full entry from localForage to avoid "rebound".
+                  const currentMetaAll = JSON.parse(
+                    localStorage.getItem("workOrderPhotosMeta") || "{}",
+                  );
+                  const currentMetaList = currentMetaAll[orderNo] || [];
+
+                  if (
+                    Array.isArray(currentMetaList) &&
+                    currentMetaList.length === 0 &&
+                    Array.isArray(full) &&
+                    full.length > 0
+                  ) {
+                    // Remove the stale entry from localForage and skip rendering
+                    try {
+                      const newObj = Object.assign({}, stored);
+                      if (Object.prototype.hasOwnProperty.call(newObj, orderNo))
+                        delete newObj[orderNo];
+                      localforage
+                        .setItem("workOrderPhotos", newObj)
+                        .catch((err) => {
+                          console.warn(
+                            "failed to remove stale workOrderPhotos entry:",
+                            err,
+                          );
+                        });
+                    } catch (err) {
+                      console.warn(
+                        "failed to remove stale localforage entry:",
+                        err,
+                      );
+                    }
+                    return;
+                  }
+
+                  // 回填 meta 到 localStorage（如果不同）
+                  try {
+                    const metaObj = {};
+                    metaObj[orderNo] = full.map((p) => ({
+                      id: p.id || null,
+                      name: p.name || null,
+                      mime: p.mime || p.type || null,
+                      timestamp: p.timestamp || null,
+                    }));
+                    localStorage.setItem(
+                      "workOrderPhotosMeta",
+                      JSON.stringify(
+                        Object.assign(
+                          JSON.parse(
+                            localStorage.getItem("workOrderPhotosMeta") || "{}",
+                          ),
+                          metaObj,
+                        ),
+                      ),
+                    );
+                  } catch (err) {
+                    // ignore localStorage write errors
+                  }
+
+                  // 触发 UI 更新：如果详情 modal 正在显示该工单，渲染历史图片；如果是固定工单，也渲染 trace 区
+                  try {
+                    if (typeof renderHistoryPhotos === "function") {
+                      renderHistoryPhotos(full);
+                    }
+                  } catch (e) {}
+                  if (orderNo === "LFP250803") {
+                    window._traceabilityPhotos = full;
+                    try {
+                      renderTraceabilityPhotos();
+                    } catch (e) {}
+                  }
+                } catch (e) {}
+              }
+            })
+            .catch((err) => {
+              console.warn("从 localforage 加载图片失败：", err);
+            });
+        } catch (e) {
+          console.warn("localforage async load failed:", e);
+        }
+      }
+
+      return result;
     } catch (e) {
       console.warn("从localStorage加载图片失败：", e);
       return [];
@@ -518,9 +807,19 @@ onReady(function () {
   }
   function clearAllData() {
     localStorage.removeItem("mesWorkOrders");
-    localStorage.removeItem("workOrderPhotos");
+    localStorage.removeItem("workOrderPhotosMeta");
     localStorage.removeItem("workOrderBatteryData");
     localStorage.removeItem("mesQualityOrders");
+    // 异步清理 localforage 中的图片存储（如果可用）
+    try {
+      if (window.localforage) {
+        localforage.removeItem("workOrderPhotos").catch((err) => {
+          console.warn("清理 localforage 中的 workOrderPhotos 失败：", err);
+        });
+      }
+    } catch (e) {
+      console.warn("清理 localforage 失败：", e);
+    }
   }
   function hasWorkOrdersInStorage() {
     return localStorage.getItem("mesWorkOrders") !== null;
@@ -540,6 +839,16 @@ onReady(function () {
     const orderArray = Object.values(workOrders).sort(
       (a, b) => new Date(b.createTime) - new Date(a.createTime),
     );
+    // Ensure fixed order LFP250803 always appears first in the list.
+    try {
+      const idx = orderArray.findIndex((o) => o && o.orderNo === "LFP250803");
+      if (idx > 0) {
+        const [lfp] = orderArray.splice(idx, 1);
+        orderArray.unshift(lfp);
+      }
+    } catch (e) {
+      // ignore any unexpected structure
+    }
     const statusFilter = currentStatusFilter || "all";
     const filteredArray =
       statusFilter === "all"
@@ -564,7 +873,7 @@ onReady(function () {
     displayedOrders.forEach((order) => {
       // 使用统一的状态徽章函数替代重复代码
       const statusBadge = getStatusBadge(order.status);
-      
+
       let actionButtons = "";
       switch (order.status) {
         case "pending":
@@ -927,7 +1236,7 @@ onReady(function () {
     try {
       // 在这里修改电压数组即可（单位：V）
       const initialBatteryVoltages = [
-        3.2, 3.2, 3.19, 3.2, 3.19, 3.17, 3.18, 3.19, 3.2, 3.18,
+        3.2, 3.2, 3.19, 3.2, 3.19, 3.17, 3.18, 3.19, 3.19, 3.18,
       ];
 
       const packDeltaBar = document.getElementById("pack-delta-bar");
@@ -1029,38 +1338,73 @@ onReady(function () {
     const photos = [];
     const photoItems = photoPreviewContainer.querySelectorAll(".relative");
     photoItems.forEach((item) => {
+      // Prefer in-memory stored entry (with blob) if present
+      const entry = item._photoEntry;
+      if (entry) {
+        photos.push(entry);
+        return;
+      }
       const img = item.querySelector("img");
       const name = item.querySelector("div").textContent.trim();
-      photos.push({ url: img.src, name: name });
+      photos.push({ id: null, name: name, url: img ? img.src : null });
     });
     return photos;
   }
 
   function renderHistoryPhotos(photos) {
     photoPreviewContainer.innerHTML = "";
-    if (photos.length === 0) {
-      photoPreviewContainer.innerHTML = '<div class="text-sm text-gray-400 text-center py-4">暂无图片</div>';
+    if (!Array.isArray(photos) || photos.length === 0) {
+      photoPreviewContainer.innerHTML =
+        '<div class="text-sm text-gray-400 text-center py-4">暂无图片</div>';
       return;
     }
-    photos.forEach((photo) => addPhotoToPreview(photo.url, photo.name));
+    photos.forEach((photo) => {
+      // photo may be {url,name} or {id,name,blob,...} or meta-only {id,name}
+      if (photo && (photo.blob || photo.file)) {
+        // real binary/file entry -> render in upload preview
+        addPhotoToPreview(photo, photo.name);
+      } else if (photo && photo.url) {
+        // If the URL is the default placeholder (1.svg), do NOT show it in the
+        // upload preview area. The default should only appear in the quality
+        // traceability area.
+        if (!photo.url.includes("1.svg")) {
+          addPhotoToPreview(photo.url, photo.name || "");
+        }
+      } else if (photo && (photo.id || photo.name)) {
+        // meta-only entry: do NOT render the default image in the upload
+        // preview. Keep the preview area empty (will show '暂无图片'). This
+        // prevents the project-included ./1.svg from appearing inside the
+        //现场图片上传区 while still allowing the traceability view to use it.
+        // no-op
+      }
+    });
+    // 如果循环结束后没有任何预览被加入（例如所有条目都是 meta-only 或者被过滤掉），
+    // 则显示默认的“暂无图片”占位，保证上传区不会留空白。
+    if (photoPreviewContainer.children.length === 0) {
+      photoPreviewContainer.innerHTML =
+        '<div class="text-sm text-gray-400 text-center py-4">暂无图片</div>';
+    }
   }
 
   function renderBatteryRecords(orderNo) {
     const list = document.getElementById("batteryRecordList");
     try {
-      const allBatteryData = JSON.parse(localStorage.getItem("workOrderBatteryData") || "{}");
+      const allBatteryData = JSON.parse(
+        localStorage.getItem("workOrderBatteryData") || "{}",
+      );
       const orderBatteryData = allBatteryData[orderNo] || [];
-      
+
       if (orderBatteryData.length === 0) {
-        list.innerHTML = '<div class="text-sm text-gray-400 text-center py-2">暂无记录</div>';
+        list.innerHTML =
+          '<div class="text-sm text-gray-400 text-center py-2">暂无记录</div>';
         return;
       }
-      
+
       list.innerHTML = "";
       orderBatteryData.forEach((batch, batchIndex) => {
         const batchDiv = document.createElement("div");
         batchDiv.className = "mb-4 border rounded p-3";
-        
+
         const batchHeader = document.createElement("div");
         batchHeader.className = "flex justify-between items-center mb-2";
         batchHeader.innerHTML = `
@@ -1068,7 +1412,7 @@ onReady(function () {
           ${batch.remark ? `<span class="text-xs text-gray-500">备注: ${batch.remark}</span>` : ""}
         `;
         batchDiv.appendChild(batchHeader);
-        
+
         const table = document.createElement("table");
         table.className = "w-full text-sm border-collapse";
         table.innerHTML = `
@@ -1083,7 +1427,7 @@ onReady(function () {
           </thead>
           <tbody></tbody>
         `;
-        
+
         const tbody = table.querySelector("tbody");
         batch.batteries.forEach((battery, index) => {
           const tr = document.createElement("tr");
@@ -1097,13 +1441,14 @@ onReady(function () {
           `;
           tbody.appendChild(tr);
         });
-        
+
         batchDiv.appendChild(table);
         list.appendChild(batchDiv);
       });
     } catch (e) {
       console.warn("加载电池检测历史记录失败：", e);
-      list.innerHTML = '<div class="text-sm text-gray-400 text-center py-2">加载记录失败</div>';
+      list.innerHTML =
+        '<div class="text-sm text-gray-400 text-center py-2">加载记录失败</div>';
     }
   }
 
@@ -1152,34 +1497,81 @@ onReady(function () {
   // 暴露到 window，方便在浏览器控制台直接调用测试
   window.addBatteryDetailRow = addBatteryDetailRow;
 
-  function addPhotoToPreview(photoDataUrl, photoName) {
+  function addPhotoToPreview(photoDataOrEntry, photoName) {
+    // Accept either a URL string or an entry object {id,name,blob,mime,timestamp}
     if (photoPreviewContainer.querySelector(".text-gray-400"))
       photoPreviewContainer.innerHTML = "";
     const photoItem = document.createElement("div");
     photoItem.className = "relative border rounded overflow-hidden bg-white";
+
+    let src = "";
+    let entry = null;
+    if (typeof photoDataOrEntry === "string") {
+      src = photoDataOrEntry;
+      entry = { id: null, name: photoName || "", url: src };
+    } else if (
+      photoDataOrEntry &&
+      (photoDataOrEntry.blob || photoDataOrEntry.file)
+    ) {
+      entry = photoDataOrEntry;
+      if (!entry.id)
+        entry.id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const blob = entry.blob || entry.file;
+      try {
+        src = URL.createObjectURL(blob);
+        photoItem._objectUrl = src;
+      } catch (e) {
+        src = "";
+      }
+    } else if (photoDataOrEntry && photoDataOrEntry.url) {
+      entry = photoDataOrEntry;
+      src = entry.url;
+    }
+
+    if (entry) photoItem._photoEntry = entry;
+
     photoItem.innerHTML = `
-      <img src="${photoDataUrl}" alt="${photoName}" class="w-full h-40 object-cover">
+      <img src="${src}" alt="${entry ? entry.name : photoName || ""}" class="w-full h-40 object-cover">
       <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 truncate">
-        ${photoName}
+        ${entry ? entry.name : photoName || ""}
       </div>
       <button class="absolute top-1 right-1 w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 delete-photo-btn">
         <i class="fa-solid fa-xmark text-xs"></i>
       </button>
     `;
     photoPreviewContainer.appendChild(photoItem);
-    photoItem.querySelector(".delete-photo-btn").addEventListener("click", function () {
-      showAppModal(`确定删除图片"${photoName}"吗？`, "确认操作").then(() => {
-        photoItem.remove();
-        const orderNo = document.getElementById("detail-order-no").textContent;
-        if (photoPreviewContainer.children.length === 0) {
-          photoPreviewContainer.innerHTML = '<div class="text-sm text-gray-400 text-center py-4">暂无图片</div>';
-        }
-        if (orderNo) {
-          const photos = getPhotosFromPreview();
-          savePhotosToLocalStorage(orderNo, photos);
-        }
+    photoItem
+      .querySelector(".delete-photo-btn")
+      .addEventListener("click", function () {
+        showAppModal(
+          `确定删除图片"${entry ? entry.name : photoName || ""}"吗？`,
+          "确认操作",
+        ).then(() => {
+          try {
+            if (photoItem._objectUrl) URL.revokeObjectURL(photoItem._objectUrl);
+          } catch (e) {}
+
+          // Compute remaining real photo items (elements with class 'relative')
+          const remainingBefore =
+            photoPreviewContainer.querySelectorAll(".relative").length;
+
+          // Remove the item and update UI based on remaining count
+          photoItem.remove();
+
+          const remainingAfter = Math.max(0, remainingBefore - 1);
+          if (remainingAfter === 0) {
+            photoPreviewContainer.innerHTML =
+              '<div class="text-sm text-gray-400 text-center py-4">暂无图片</div>';
+          }
+
+          const orderNo =
+            document.getElementById("detail-order-no").textContent;
+          if (orderNo) {
+            const photos = getPhotosFromPreview();
+            savePhotosToLocalStorage(orderNo, photos);
+          }
+        });
       });
-    });
   }
 
   // ========== 事件绑定与交互逻辑（尽量保持原结构） ==========
@@ -1249,7 +1641,10 @@ onReady(function () {
       if (!container) return;
 
       // 如果追溯图片为空，尝试从localStorage加载LFP250803工单的图片
-      if (!window._traceabilityPhotos || window._traceabilityPhotos.length === 0) {
+      if (
+        !window._traceabilityPhotos ||
+        window._traceabilityPhotos.length === 0
+      ) {
         const lfpPhotos = loadPhotosFromLocalStorage("LFP250803");
         if (lfpPhotos && lfpPhotos.length > 0) {
           window._traceabilityPhotos = lfpPhotos;
@@ -1258,28 +1653,47 @@ onReady(function () {
 
       const photos = window._traceabilityPhotos || [];
       container.innerHTML = "";
-      
+
       if (!photos || photos.length === 0) {
         // 当没有图片时，显示1.svg
         const defaultPhoto = { url: "./1.svg", name: "默认图片" };
         photos.push(defaultPhoto);
       }
-      
+
       const grid = document.createElement("div");
       grid.className = "trace-photo-grid";
       photos.forEach((p, idx) => {
-        const src = typeof p === "string" ? p : p.url;
-        const name = typeof p === "string" ? "" : p.name || "";
         const item = document.createElement("div");
         item.className = "trace-photo-item";
         const img = document.createElement("img");
         img.loading = "lazy";
-        img.src = src;
+        let name = "";
+        // Determine src: support string URL, object with url, or object with blob/file
+        if (typeof p === "string") {
+          img.src = p;
+          name = "";
+        } else if (p && p.url) {
+          img.src = p.url;
+          name = p.name || "";
+        } else if (p && (p.blob || p.file)) {
+          try {
+            const blob = p.blob || p.file;
+            const objectUrl = URL.createObjectURL(blob);
+            img.src = objectUrl;
+            // store objectUrl to revoke later if needed
+            img._objectUrl = objectUrl;
+            name = p.name || "";
+          } catch (e) {
+            img.src = "./1.svg";
+            name = p.name || "";
+          }
+        } else {
+          img.src = "./1.svg";
+        }
         img.alt = name || `追溯图片 ${idx + 1}`;
         img.addEventListener("click", function () {
-          // 点击放大：使用 showAppModal 显示图片（支持 HTML）
           showAppModal(
-            `<div style="text-align:center;"><img src="${img.src}" style="max-width:100%;height:auto;border-radius:8px;"><div class="text-sm text-gray-500 mt-2">${name || ""}</div></div>`,
+            `<div style="text-align:center;"><img src="${img.src}" style="max-width:100%;height:auto;border-radius:8px;"><div class=\"text-sm text-gray-500 mt-2\">${name || ""}</div></div>`,
             "图片预览",
           );
         });
@@ -1296,9 +1710,19 @@ onReady(function () {
       // 更新上传图片数量（排除1.svg）
       const uploadPhotoCount = document.getElementById("upload-photo-count");
       if (uploadPhotoCount) {
-        const countWithoutDefault = photos.filter(p => {
-          const url = typeof p === "string" ? p : p.url;
-          return !url.includes("1.svg");
+        // 只统计真实上传的图片：
+        // - 包含 blob/file 的条目视为真实图片
+        // - 有非空 url 且不是默认 ./1.svg 的条目也视为真实图片
+        const countWithoutDefault = (photos || []).filter((p) => {
+          try {
+            if (!p) return false;
+            if (typeof p === "string") return !p.includes("1.svg");
+            if (p.blob || p.file) return true;
+            const url = p.url || "";
+            return url !== "" && !url.includes("1.svg");
+          } catch (e) {
+            return false;
+          }
         }).length;
         uploadPhotoCount.textContent = `${countWithoutDefault}张`;
       }
@@ -1339,7 +1763,7 @@ onReady(function () {
   try {
     // 这里调用 setTraceabilityPhotos 用于示范。你可以在代码任意位置替换或移除此示例。
     window.setTraceabilityPhotos([
-      { url: "./1.svg", name: "示例 - 1.svg (已添加到项目中)" }
+      { url: "./1.svg", name: "示例 - 1.svg (已添加到项目中)" },
     ]);
   } catch (e) {
     console.warn("示例图片设置失败：", e);
@@ -1388,9 +1812,10 @@ onReady(function () {
 
     // 检查是否是固定工单 LFP250803
     const workOrders = loadAllWorkOrders();
-    const isFixedOrder = productName === "电池包组装" && 
-                         productionLine === "电池包组装线1" && 
-                         planQuantity == 1;
+    const isFixedOrder =
+      productName === "电池包组装" &&
+      productionLine === "电池包组装线1" &&
+      planQuantity == 1;
 
     let orderNo;
     let newOrder;
@@ -1470,7 +1895,8 @@ onReady(function () {
           renderBatteryRecords(orderId);
           // 更新截止时间
           const workOrders = loadAllWorkOrders();
-          const order = workOrders && workOrders[orderId] ? workOrders[orderId] : null;
+          const order =
+            workOrders && workOrders[orderId] ? workOrders[orderId] : null;
           if (order && order.deadline) {
             const detailDeadlineEl = document.getElementById("detail-deadline");
             if (detailDeadlineEl) {
@@ -1505,7 +1931,8 @@ onReady(function () {
           renderBatteryRecords(orderId);
           // 更新截止时间
           const workOrders = loadAllWorkOrders();
-          const order = workOrders && workOrders[orderId] ? workOrders[orderId] : null;
+          const order =
+            workOrders && workOrders[orderId] ? workOrders[orderId] : null;
           if (order && order.deadline) {
             const detailDeadlineEl = document.getElementById("detail-deadline");
             if (detailDeadlineEl) {
@@ -1586,9 +2013,10 @@ onReady(function () {
       batteryTypes.forEach((typeSelect, index) => {
         const type = typeSelect.value;
         const originalVoltage = batteryVoltages[index].value;
-        const convertedVoltage = parseFloat(originalVoltage) >= 100 
-          ? parseFloat(originalVoltage).toFixed(0) 
-          : (parseFloat(originalVoltage) * 1000).toFixed(0);
+        const convertedVoltage =
+          parseFloat(originalVoltage) >= 100
+            ? parseFloat(originalVoltage).toFixed(0)
+            : (parseFloat(originalVoltage) * 1000).toFixed(0);
         const resistance = batteryResistances[index].value;
         const capacity =
           document.querySelectorAll(".battery-capacity")[index]?.value || "";
@@ -1625,19 +2053,22 @@ onReady(function () {
     Array.from(files).forEach((file) => {
       if (!file.type || !file.type.startsWith("image/")) return;
       validCount++;
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        try {
-          addPhotoToPreview(event.target.result, file.name);
-          if (orderNo) {
-            const photos = getPhotosFromPreview();
-            savePhotosToLocalStorage(orderNo, photos);
-          }
-        } catch (err) {
-          console.warn("处理上传图片失败：", err);
+      try {
+        const entry = {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name,
+          mime: file.type,
+          timestamp: new Date().toISOString(),
+          blob: file,
+        };
+        addPhotoToPreview(entry);
+        if (orderNo) {
+          const photos = getPhotosFromPreview();
+          savePhotosToLocalStorage(orderNo, photos);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn("处理上传图片失败：", err);
+      }
     });
     this.value = "";
     showAppModal(
@@ -1682,9 +2113,10 @@ onReady(function () {
           (shownOrderNo === orderId || shownOrderNo.includes(orderId))
         ) {
           const workOrders = loadAllWorkOrders();
-          const order = workOrders && workOrders[orderId] ? workOrders[orderId] : null;
+          const order =
+            workOrders && workOrders[orderId] ? workOrders[orderId] : null;
           const status = forceStatus || (order ? order.status : null);
-          
+
           // 统一处理状态为已完成或已取消的情况
           if (status === "completed" || status === "cancelled") {
             if (remarkArea) remarkArea.style.display = "none";
@@ -1699,11 +2131,11 @@ onReady(function () {
               submitBtn.disabled = false;
             }
           }
-          
+
           // 更新状态显示
           if (detailStatusEl && status)
             detailStatusEl.innerHTML = getStatusBadge(status);
-            
+
           // 更新截止时间
           if (detailDeadlineEl && order && order.deadline) {
             detailDeadlineEl.textContent = order.deadline;
@@ -1725,7 +2157,7 @@ onReady(function () {
     const resumeEl = e.target.closest && e.target.closest(".resume-btn");
     const completeEl = e.target.closest && e.target.closest(".complete-btn");
     const cancelEl = e.target.closest && e.target.closest(".cancel-btn");
-  
+
     // 使用统一的处理函数替代重复代码
     handleOrderAction(dispatchEl, "dispatch", workOrders);
     handleOrderAction(pauseEl, "pause", workOrders);
@@ -1745,17 +2177,17 @@ onReady(function () {
           successMsg: `工单 ${orderId} 派发成功！现在可点击「详情」按钮填写生产数据。`,
           additionalActions: () => {
             savePhotosToLocalStorage(orderId, []);
-          }
+          },
         },
         pause: {
           status: "paused",
           confirmMsg: `确定暂停工单 ${orderId} 吗？暂停后仍可查看/编辑已填写数据！`,
-          successMsg: `工单 ${orderId} 已暂停。`
+          successMsg: `工单 ${orderId} 已暂停。`,
         },
         resume: {
           status: "processing",
           confirmMsg: `确定恢复工单 ${orderId} 吗？`,
-          successMsg: `工单 ${orderId} 已恢复。`
+          successMsg: `工单 ${orderId} 已恢复。`,
         },
         complete: {
           status: "completed",
@@ -1763,24 +2195,24 @@ onReady(function () {
           successMsg: `工单 ${orderId} 已标记为完成，所有数据（包括图片和电池数据）已保存！`,
           additionalActions: () => {
             updateDetailViewForOrder(orderId, "completed");
-          }
+          },
         },
         cancel: {
           status: "cancelled",
           confirmMsg: `确定取消工单 ${orderId} 吗？此操作不可恢复！`,
-          successMsg: `工单 ${orderId} 已取消。`
-        }
+          successMsg: `工单 ${orderId} 已取消。`,
+        },
       };
-      
+
       const config = actionConfig[action];
       if (workOrders[orderId] && confirm(config.confirmMsg)) {
         workOrders[orderId].status = config.status;
         saveAllWorkOrders(workOrders);
-        
+
         if (config.additionalActions) {
           config.additionalActions();
         }
-        
+
         renderWorkOrders();
         showAppModal(config.successMsg);
       }
@@ -1814,7 +2246,8 @@ onReady(function () {
 
       // 更新质量追溯的生产时间，与工单管理的LFP250803工单的创立时间挂钩
       const workOrders = loadAllWorkOrders();
-      const lfpOrder = workOrders && workOrders["LFP250803"] ? workOrders["LFP250803"] : null;
+      const lfpOrder =
+        workOrders && workOrders["LFP250803"] ? workOrders["LFP250803"] : null;
       if (lfpOrder && lfpOrder.createTime) {
         const productionTime = document.getElementById("production-time");
         if (productionTime) {
