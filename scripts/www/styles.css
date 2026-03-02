@@ -1,0 +1,299 @@
+/* 签名面板样式 */
+.signature-panel {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+  padding: 20px;
+}
+
+.signature-content {
+  --sig-width: 66.666vw;
+  --sig-height: 66.666vh;
+  width: var(--sig-width);
+  height: var(--sig-height);
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.signature-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.signature-title {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.signature-sub {
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.signature-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.signature-canvas {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 120px;
+  border: 1px solid #e6e7ea;
+  border-radius: 8px;
+  background: #fff;
+  touch-action: none;
+  display: block;
+  box-sizing: border-box;
+}
+
+.signature-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (min-width: 480px) {
+  .signature-actions .signature-btn {
+    width: 48%;
+  }
+}
+
+@media (max-width: 479px) {
+  .signature-actions {
+    flex-direction: column;
+  }
+  .signature-actions .signature-btn {
+    width: 100%;
+  }
+}
+
+.signature-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.signature-btn-outline {
+  background: #fff;
+  border: 1px solid #e6e7ea;
+  color: #111827;
+}
+
+.signature-btn-primary {
+  background: #165dff;
+  color: #fff;
+  border: none;
+}
+
+.signature-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* 按钮样式变量 */
+:root {
+  --quality-btn-bg: #165cff;
+  --quality-btn-color: #ffffff;
+  --quality-btn-padding: 10px 14px;
+  --quality-btn-radius: 8px;
+  --quality-btn-border: none;
+  --quality-btn-hover: #1248d6;
+  --confirm-btn-bg: #4af0ff30;
+  --confirm-btn-color: #ffffff;
+  --confirm-btn-padding: 8px 12px;
+  --confirm-btn-radius: 8px;
+  --confirm-btn-border: none;
+  --confirm-btn-hover: #0ea26f;
+}
+
+/* 通用按钮样式 */
+.quality-action-btn,
+.confirm-action-btn {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.quality-action-btn {
+  background: var(--quality-btn-bg);
+  color: var(--quality-btn-color);
+  padding: var(--quality-btn-padding);
+  border-radius: var(--quality-btn-radius);
+  border: var(--quality-btn-border);
+}
+
+.quality-action-btn.secondary {
+  background: transparent;
+  color: var(--quality-btn-bg);
+  border: 1px solid var(--quality-btn-bg);
+}
+
+.quality-action-btn:hover {
+  background: var(--quality-btn-hover);
+}
+
+.confirm-action-btn {
+  background: var(--confirm-btn-bg);
+  color: var(--confirm-btn-color);
+  padding: var(--confirm-btn-padding);
+  border-radius: var(--confirm-btn-radius);
+  border: var(--confirm-btn-border);
+}
+
+.confirm-action-btn:hover {
+  background: var(--confirm-btn-hover);
+}
+
+.quality-action-btn.small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+#save-quality-btn.quality-action-btn {
+  background: var(--quality-btn-bg) !important;
+  color: var(--quality-btn-color) !important;
+  padding: var(--quality-btn-padding) !important;
+  border-radius: var(--quality-btn-radius) !important;
+  border: var(--quality-btn-border) !important;
+}
+
+#save-quality-btn.quality-action-btn:hover {
+  background: var(--quality-btn-hover) !important;
+}
+
+/* 折叠后的简洁一行样式：
+   - 与下方列表列对齐（保持与表格单元格相同的左右内边距）
+   - 水平居中对齐文字垂直位置
+   - 在折叠行下方添加一条细线（下划线视觉）
+*/
+
+/* 确保折叠后的一行（collapsed row）与下方质量工单列表完全一致
+   - 精确匹配 Tailwind 的 `py-3 px-4 text-sm` 的计算样式
+   - 避免因继承或其他样式导致的视觉偏差
+*/
+#collapsed-detail-row-container table.min-w-full td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 折叠行下划线 */
+#collapsed-detail-row-container table.min-w-full tbody tr:first-child {
+  border-bottom: 1px solid #e6e7ea;
+}
+
+/* 窄屏内边距调整 */
+@media (max-width: 640px) {
+  #collapsed-detail-row-container table.min-w-full td {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* 工单详情卡片设置为相对定位，以便内部元素使用绝对定位 */
+#traceability-card {
+  position: relative;
+}
+
+/* 当卡片处于折叠状态时，缩短卡片顶部的内边距以减少上方空白 */
+#traceability-card.collapsed {
+  padding-top: 0.15rem;
+}
+
+/* 确保折叠的表格容器在隐藏时不占据空间 */
+#collapsed-detail-row-container.hidden {
+  display: none !important;
+}
+
+/* 全局模态提示样式（替代 alert） */
+#appModal .bg-primary {
+  background-color: var(--quality-btn-bg, #165cff);
+}
+
+/* 追溯图片区域 */
+#trace-fixed-photos {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  max-width: 350px;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+
+#batteriesContainer {
+  margin-top: 30px;
+}
+
+#trace-fixed-photos .trace-photo-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding-bottom: 8px;
+  padding-right: 8px;
+}
+
+#trace-fixed-photos .trace-photo-item {
+  background: #fff;
+  border: 1px solid #e6e7ea;
+  border-radius: 8px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+#trace-fixed-photos .trace-photo-item img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  display: block;
+}
+
+#trace-fixed-photos .trace-photo-caption {
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+  margin-top: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
