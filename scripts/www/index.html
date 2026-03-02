@@ -43,15 +43,12 @@
           @apply shadow-md hover:shadow-lg transition-shadow duration-300;
         }
 
+        /* 保留基础 reset，但不要强制 body 使用视窗固定尺寸或隐藏滚动，
+           以便页面在小屏上可以正常滚动并响应高度变化。 */
         * {
           margin: 0;
           padding: 0;
           box-sizing: border-box;
-        }
-        body {
-          width: 100vw !important;
-          height: 100vh !important;
-          overflow: hidden !important;
         }
       }
     </style>
@@ -60,9 +57,12 @@
   </head>
 
   <body class="bg-gray-50 font-sans antialiased">
-    <div class="flex h-screen overflow-hidden">
+    <div class="flex min-h-screen">
       <!-- 侧边栏: 应包含系统导航、用户信息等（可折叠以适配移动端） -->
-      <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <aside
+        class="hidden lg:flex lg:flex-col w-64 bg-white border-r border-gray-200"
+        id="main-sidebar"
+      >
         <div class="p-4 border-b border-gray-200 flex items-center">
           <i class="fa-solid fa-industry text-primary text-2xl mr-3"></i>
           <h1 class="text-xl font-bold text-dark">MES制造执行系统</h1>
@@ -661,6 +661,9 @@
               </div>
             </div>
           </div>
+
+          <!-- 移动端侧栏遮罩（与侧栏配合用于全屏覆盖导航） -->
+          <div id="mobile-nav-backdrop" class="hidden lg:hidden"></div>
 
           <!-- 工单管理模块 - 核心功能区：包含工单增删改查、详情与生产操作 -->
           <section id="work-order" class="hidden space-y-6">
