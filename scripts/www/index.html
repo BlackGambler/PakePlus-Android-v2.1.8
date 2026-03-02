@@ -4,32 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MES系统-电池包工单管理</title>
-    <!-- Performance: resource hints to reduce DNS/connection latency for external CDNs -->
-    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
-    <link rel="preconnect" href="https://picsum.photos" crossorigin />
-    <link rel="dns-prefetch" href="//cdn.tailwindcss.com" />
-    <link rel="dns-prefetch" href="//cdn.jsdelivr.net" />
-    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com" />
-    <!-- 引入外部资源 -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-    />
-    <!-- Preload Chart.js then load with defer to avoid blocking initial parsing -->
-    <link
-      rel="preload"
-      href="https://cdn.jsdelivr.net/npm/chart.js"
-      as="script"
-      crossorigin
-    />
-    <script
-      src="https://cdn.jsdelivr.net/npm/chart.js"
-      defer
-      crossorigin
-    ></script>
+    <!-- 本地化的静态资源：已把外部 CDN 替换为项目内 vendor/ 目录下的文件 -->
+    <script src="vendor/tailwind.cdn.js"></script>
+    <link rel="stylesheet" href="vendor/fontawesome.min.css" />
+    <!-- Chart.js 本地脚本 -->
+    <script src="vendor/chart.min.js" defer></script>
 
     <!-- Tailwind 自定义配置 -->
     <script>
@@ -62,6 +41,17 @@
         }
         .card-shadow {
           @apply shadow-md hover:shadow-lg transition-shadow duration-300;
+        }
+
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          width: 100vw !important;
+          height: 100vh !important;
+          overflow: hidden !important;
         }
       }
     </style>
@@ -310,7 +300,9 @@
             <!-- 生产趋势和工单列表 -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <!-- 生产趋势图 -->
-              <div class="bg-white rounded-xl p-6 lg:col-span-2 card-shadow flex flex-col">
+              <div
+                class="bg-white rounded-xl p-6 lg:col-span-2 card-shadow flex flex-col"
+              >
                 <div class="flex items-center justify-between mb-6">
                   <h3 class="text-lg font-semibold text-gray-800">
                     生产趋势（近7天）
@@ -1291,7 +1283,7 @@
                       <label class="text-xs text-neutral-400 block mb-1"
                         >安全员</label
                       >
-                      <div class="text-neutral-600 font-medium">张伟</div>
+                      <div class="text-neutral-600 font-medium">张三</div>
                     </div>
                     <div class="col-span-1 md:col-span-1">
                       <label class="text-xs text-neutral-400 block mb-1"
@@ -1498,7 +1490,7 @@
                 <!-- 质检结果录入 -->
                 <div
                   class="bg-white rounded-lg p-5 card-shadow col-span-1 lg:col-span-1 flex flex-col"
-                  style="min-height: 600px;"
+                  style="min-height: 600px"
                 >
                   <h3
                     class="font-semibold text-neutral-600 mb-4 flex items-center gap-2"
@@ -1609,7 +1601,7 @@
                       <textarea
                         class="flex-1 w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
                         placeholder="请输入过程中产生的问题..."
-                        style="min-height: 200px;"
+                        style="min-height: 200px"
                       ></textarea>
                     </div>
                   </div>
@@ -1726,7 +1718,9 @@
                   </tr>
                   <tr>
                     <td class="py-2 font-medium text-gray-700">操作人员</td>
-                    <td class="py-2">李四（工号：00124）、王五（工号：00125）</td>
+                    <td class="py-2">
+                      李四（工号：00124）、王五（工号：00125）
+                    </td>
                   </tr>
                   <tr>
                     <td class="py-2 font-medium text-gray-700">签收情况</td>
@@ -1738,7 +1732,9 @@
                   </tr>
                   <tr>
                     <td class="py-2 font-medium text-gray-700">工单相关内容</td>
-                    <td class="py-2">经检测，动力电池模组外观无损伤，性能测试达标</td>
+                    <td class="py-2">
+                      经检测，动力电池模组外观无损伤，性能测试达标
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -1911,6 +1907,9 @@
     </div>
 
     <!-- 重构后的脚本：所有页面行为已移动到 app.js（defer 加载） -->
+    <!-- 本地 localForage：请将 vendor/localforage.min.js 替换为正式库文件 -->
+    <script src="vendor/localforage.min.js" defer></script>
     <script src="app.js" defer></script>
+    <script src="lock-landscape.js" defer></script>
   </body>
 </html>
