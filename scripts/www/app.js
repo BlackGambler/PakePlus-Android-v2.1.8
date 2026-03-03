@@ -144,9 +144,76 @@ function showAppModal(message, title) {
 
     window.addEventListener("resize", resizeCanvas);
 
+    // 通用面板显示/隐藏函数（封装 class 操作，便于复用和维护）
+    function showPanel(panel, onShow) {
+      try {
+        panel.classList.remove("hidden");
+        panel.classList.add("flex");
+      } catch (e) {}
+      if (typeof onShow === "function") onShow();
+    }
+
+    function hidePanel(panel) {
+      try {
+        panel.classList.add("hidden");
+        panel.classList.remove("flex");
+      } catch (e) {}
+    }
+
+    // 如果环境不支持 PointerEvent，回退到 touch 事件（一些旧版 WebView/Android 系统）
+    if (typeof window.PointerEvent === "undefined") {
+      function getTouchPos(touchEvent) {
+        const t = touchEvent.touches && touchEvent.touches[0];
+        if (!t) return null;
+        const rect = canvas.getBoundingClientRect();
+        return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      }
+
+      canvas.addEventListener(
+        "touchstart",
+        function (e) {
+          e.preventDefault();
+          const p = getTouchPos(e);
+          if (!p) return;
+          drawing = true;
+          lastX = p.x;
+          lastY = p.y;
+        },
+        { passive: false },
+      );
+
+      canvas.addEventListener(
+        "touchmove",
+        function (e) {
+          e.preventDefault();
+          if (!drawing) return;
+          const p = getTouchPos(e);
+          if (!p) return;
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+          lastX = p.x;
+          lastY = p.y;
+        },
+        { passive: false },
+      );
+
+      canvas.addEventListener(
+        "touchend",
+        function (e) {
+          e.preventDefault();
+          drawing = false;
+        },
+        { passive: false },
+      );
+    }
+
     confirmBtn.addEventListener("click", function () {
-      signaturePanel.style.display = "flex";
-      requestAnimationFrame(resizeCanvas);
+      // 使用封装函数控制面板显示
+      showPanel(signaturePanel, function () {
+        requestAnimationFrame(resizeCanvas);
+      });
 
       // 更新质量追溯的签收情况
       const signStatus = document.getElementById("sign-status");
@@ -158,7 +225,7 @@ function showAppModal(message, title) {
     });
 
     closeBtn?.addEventListener("click", function () {
-      signaturePanel.style.display = "none";
+      hidePanel(signaturePanel);
     });
 
     clearBtn?.addEventListener("click", function () {
@@ -170,7 +237,7 @@ function showAppModal(message, title) {
     });
 
     submitBtn?.addEventListener("click", function () {
-      signaturePanel.style.display = "none";
+      hidePanel(signaturePanel);
       try {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -950,19 +1017,19 @@ onReady(function () {
       let actionButtons = "";
       switch (order.status) {
         case "pending":
-          actionButtons = `\n            <div class="flex space-x-2">\n              <button class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button class="text-primary hover:underline dispatch-btn" data-id="${order.orderNo}">派发</button>\n              <button class="text-danger hover:underline cancel-btn" data-id="${order.orderNo}">取消</button>\n            </div>\n`;
+          actionButtons = `\n            <div class="flex space-x-2">\n              <button type="button" class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button type="button" class="text-primary hover:underline dispatch-btn" data-id="${order.orderNo}">派发</button>\n              <button type="button" class="text-danger hover:underline cancel-btn" data-id="${order.orderNo}">取消</button>\n            </div>\n`;
           break;
         case "processing":
-          actionButtons = `\n            <div class="flex space-x-2">\n              <button class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button class="text-warning hover:underline pause-btn" data-id="${order.orderNo}">暂停</button>\n              <button class="text-success hover:underline complete-btn" data-id="${order.orderNo}">完成</button>\n            </div>\n`;
+          actionButtons = `\n            <div class="flex space-x-2">\n              <button type="button" class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button type="button" class="text-warning hover:underline pause-btn" data-id="${order.orderNo}">暂停</button>\n              <button type="button" class="text-success hover:underline complete-btn" data-id="${order.orderNo}">完成</button>\n            </div>\n`;
           break;
         case "paused":
-          actionButtons = `\n            <div class="flex space-x-2">\n              <button class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button class="text-success hover:underline resume-btn" data-id="${order.orderNo}">恢复</button>\n              <button class="text-danger hover:underline cancel-btn" data-id="${order.orderNo}">取消</button>\n            </div>\n`;
+          actionButtons = `\n            <div class="flex space-x-2">\n              <button type="button" class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button type="button" class="text-success hover:underline resume-btn" data-id="${order.orderNo}">恢复</button>\n              <button type="button" class="text-danger hover:underline cancel-btn" data-id="${order.orderNo}">取消</button>\n            </div>\n`;
           break;
         case "completed":
-          actionButtons = `\n            <div class="flex space-x-2">\n              <button class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button class="text-gray-500 cursor-not-allowed" disabled>归档</button>\n            </div>\n`;
+          actionButtons = `\n            <div class="flex space-x-2">\n              <button type="button" class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button type="button" class="text-gray-500 cursor-not-allowed" disabled>归档</button>\n            </div>\n`;
           break;
         case "cancelled":
-          actionButtons = `\n            <div class="flex space-x-2">\n              <button class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button class="text-gray-500 cursor-not-allowed" disabled>已取消</button>\n            </div>\n`;
+          actionButtons = `\n            <div class="flex space-x-2">\n              <button type="button" class="text-primary hover:underline view-btn" data-id="${order.orderNo}">详情</button>\n              <button type="button" class="text-gray-500 cursor-not-allowed" disabled>已取消</button>\n            </div>\n`;
           break;
       }
       const completeQty =
@@ -1842,13 +1909,21 @@ onReady(function () {
     console.warn("示例图片设置失败：", e);
   }
 
-  createWorkOrderBtn?.addEventListener("click", function () {
+  function openCreateWorkOrderModal() {
     createWorkOrderModal.classList.remove("hidden");
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const formattedDate = tomorrow.toISOString().slice(0, 16);
     createWorkOrderForm.querySelector('input[name="deadline"]').value =
       formattedDate;
+  }
+
+  // 支持 click 与 touchstart 双触发（在某些嵌入式 WebView 中，click 可能延迟或不触发）
+  createWorkOrderBtn?.addEventListener("click", openCreateWorkOrderModal);
+  createWorkOrderBtn?.addEventListener("touchstart", function (e) {
+    // 阻止可能的双触发（浏览器会在 touchend 后触发 click）
+    e.preventDefault();
+    openCreateWorkOrderModal();
   });
   // 生成质量工单按钮事件处理已删除（由清空操作统一触发）
   document
