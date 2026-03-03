@@ -2,12 +2,19 @@
 .signature-panel {
   position: fixed;
   inset: 0;
-  display: none;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
   z-index: 9999;
   padding: 20px;
+}
+
+/* 初始隐藏/显示由类控制，避免与工具类（Tailwind .flex/.hidden）冲突 */
+.signature-panel.hidden {
+  display: none !important;
+}
+.signature-panel.flex {
+  display: flex !important;
 }
 
 .signature-content {
